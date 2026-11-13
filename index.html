@@ -9,7 +9,21 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 
     <style>
-        body { font-family: 'Inter', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        /* KUNCI UTAMA: Memaksa aplikasi pas dengan layar yang terlihat (mengabaikan URL bar) */
+        html, body {
+            width: 100%;
+            height: 100%;
+            height: 100dvh; /* Dynamic viewport (sangat penting untuk HP/Tablet) */
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            position: fixed; /* Mencegah scroll sama sekali */
+            top: 0; left: 0; right: 0; bottom: 0;
+            font-family: 'Inter', sans-serif; 
+            user-select: none; 
+            -webkit-tap-highlight-color: transparent;
+        }
+
         .bg-header { background: linear-gradient(to right, #ff4b4b, #d80000); }
         
         .candidate-card { transition: all 0.2s ease-in-out; }
@@ -29,7 +43,6 @@
 
         /* =========================================================
            HP LANSKAP (SANGAT KETAT: PAS LAYAR, NO SCROLL)
-           Menggunakan unit 'vh' agar mengikuti tinggi layar aktual
            ========================================================= */
         @media (orientation: landscape) and (max-height: 600px) {
             #screen-scan { overflow: hidden !important; }
@@ -63,8 +76,8 @@
             .pb-8 { padding-bottom: 1vh !important; }
             #btn-pilih { padding: 1.5vh 5vw !important; font-size: 3.5vh !important; border-radius: 1vh !important; margin-top: 1vh !important; }
 
-            /* Modal HP (No Scroll) */
-            #modal-konfirmasi .bg-white { max-height: 95vh !important; width: 65vw !important; max-width: none !important; display: flex; flex-direction: column; justify-content: space-between; border-radius: 2vh !important; }
+            /* Modal HP (Diubah max-height ke persen agar berpatokan pada tinggi fixed) */
+            #modal-konfirmasi .bg-white { max-height: 95% !important; width: 65vw !important; max-width: none !important; display: flex; flex-direction: column; justify-content: space-between; border-radius: 2vh !important; }
             #modal-konfirmasi .bg-blue-600 { padding: 1.5vh 3vw !important; }
             #modal-konfirmasi .bg-blue-600 h3 { font-size: 3.5vh !important; }
             #modal-konfirmasi .p-6, #modal-konfirmasi .sm\:p-8 { padding: 2vh 3vw !important; overflow: hidden !important; flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; }
@@ -112,7 +125,7 @@
             #modal-konfirmasi .bg-white { 
                 min-width: 70% !important; 
                 max-width: 650px !important; 
-                max-height: 92vh !important; /* Mencegah modal melebihi tinggi layar laptop */
+                max-height: 92% !important; /* Gunakan Persen agar tidak menembus batas window bawah */
                 display: flex; flex-direction: column;
             }
             #modal-konfirmasi .bg-blue-600 { padding: 15px 20px !important; flex-shrink: 0; }
@@ -120,24 +133,24 @@
             
             #modal-konfirmasi .p-6, #modal-konfirmasi .sm\:p-8 { 
                 padding: 25px !important; 
-                overflow-y: auto; /* Jika layar sangat pendek, otomatis bisa discroll sedikit di bagian dalam */
+                overflow-y: auto; 
                 flex-grow: 1; display: flex; flex-direction: column; align-items: center;
             }
             
-            #modal-konfirmasi p.text-gray-600 { font-size: 1.4rem !important; margin-bottom: 15px !important; flex-shrink: 0; }
+            #modal-konfirmasi p.text-gray-600 { font-size: 1.4rem !important; margin-bottom: 15px !important; flex-shrink: 0; text-align: center;}
             
-            /* Foto kandidat dibatasi dengan max-height vh agar fleksibel */
+            /* Foto kandidat dibatasi agar fleksibel */
             #modal-konfirmasi .w-32, #modal-konfirmasi .sm\:w-40 { 
                 width: 180px !important; 
-                height: 28vh !important; /* Dinamis */
+                height: 28vh !important; 
                 min-height: 150px !important;
                 max-height: 220px !important;
                 margin-bottom: 15px !important; 
                 border-width: 4px !important; 
                 flex-shrink: 0;
             }
-            #modal-nama { font-size: 2.2rem !important; margin-bottom: 5px !important; flex-shrink: 0; }
-            #modal-konfirmasi p.text-gray-500 { font-size: 1.2rem !important; margin-bottom: 25px !important; flex-shrink: 0; }
+            #modal-nama { font-size: 2.2rem !important; margin-bottom: 5px !important; flex-shrink: 0; text-align: center; }
+            #modal-konfirmasi p.text-gray-500 { font-size: 1.2rem !important; margin-bottom: 25px !important; flex-shrink: 0; text-align: center; }
             
             /* Tombol yang besar namun tidak akan keluar layar */
             #modal-konfirmasi .flex.gap-3 { width: 100%; flex-shrink: 0; margin-top: auto; }
@@ -171,7 +184,7 @@
         }
     </style>
 </head>
-<body class="bg-gray-100 h-screen w-full flex flex-col overflow-hidden relative text-sm sm:text-base">
+<body class="bg-gray-100 flex flex-col relative text-sm sm:text-base">
 
     <!-- 1. SCREEN: SCAN BARCODE -->
     <div id="screen-scan" class="flex flex-col h-full w-full bg-[#f4f7fa] z-10 absolute inset-0">
@@ -218,7 +231,7 @@
 
     <!-- 3. MODAL KONFIRMASI -->
     <div id="modal-konfirmasi" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="bg-white rounded-2xl w-full max-w-[400px] sm:max-w-[500px] overflow-hidden shadow-2xl transform transition-all flex flex-col max-h-[96vh]">
+        <div class="bg-white rounded-2xl w-full max-w-[400px] sm:max-w-[500px] overflow-hidden shadow-2xl transform transition-all flex flex-col max-h-[96%]">
             
             <div class="bg-blue-600 text-white py-3 px-5 sm:py-4 sm:px-6 shrink-0">
                 <h3 class="text-lg sm:text-xl font-bold">Konfirmasi Pemilihan</h3>
@@ -279,7 +292,7 @@
 
         let selectedCandidate = null;
         let qrScanner = null;
-        let currentFacingMode = "environment"; // Standar kamera belakang
+        let currentFacingMode = "environment"; 
         let isCameraRunning = false;
 
         window.onload = () => {
@@ -313,18 +326,17 @@
                     }
                 },
                 (errorMessage) => {
-                    // Abaikan pesan error minor setiap frame
+                    // Abaikan pesan error minor
                 }
             ).then(() => { 
                 isCameraRunning = true; 
                 statusText.innerHTML = "Kamera aktif. Arahkan ke QR Code.";
                 statusText.className = "text-green-600 text-[12px] sm:text-sm mb-4 font-medium text-center";
             }).catch(err => { 
-                // FALLBACK OTOMATIS: Jika gagal mencari "environment" (seperti di laptop), langsung switch ke "user" (webcam)
                 if (currentFacingMode === "environment") {
                     console.log("Kamera belakang tidak ditemukan, beralih ke webcam (user)...");
                     currentFacingMode = "user";
-                    startCamera(); // Panggil fungsi kembali untuk menggunakan kamera depan
+                    startCamera(); 
                 } else {
                     console.warn("Kamera tidak tersedia:", err); 
                     statusText.innerHTML = "Gagal memuat kamera. Pastikan izin kamera telah diberikan.";
@@ -445,10 +457,9 @@
                 setTimeout(() => {
                     document.getElementById('qrcode-receipt').innerHTML = '';
                     
-                    // Deteksi lebar layar untuk ukuran QR code dinamis
-                    let qrSize = 80; // Ukuran default (HP)
+                    let qrSize = 80;
                     if (window.innerWidth >= 768) {
-                        qrSize = 120; // Ukuran laptop/tablet
+                        qrSize = 120;
                     }
                     
                     new QRCode(document.getElementById("qrcode-receipt"), { 
