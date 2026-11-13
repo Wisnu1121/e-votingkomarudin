@@ -38,9 +38,10 @@
             #screen-scan h2 { font-size: 1.2rem !important; margin-bottom: 2px !important; }
             #screen-scan p { font-size: 0.75rem !important; margin-bottom: 8px !important; }
             
-            /* Penambahan min-height agar kotak tidak hilang di lanskap */
-            #reader { width: 200px !important; max-width: 200px !important; min-height: 150px !important; max-height: 160px !important; margin-bottom: 8px !important; }
-            #reader video { object-fit: cover !important; max-height: 160px !important; }
+            /* Penyesuaian area kamera lanskap agar tetap terlihat */
+            #reader { width: 250px !important; max-width: 250px !important; min-height: 180px !important; margin-bottom: 8px !important; display: flex; align-items: center; justify-content: center; }
+            #reader video { object-fit: cover !important; width: 100% !important; height: 100% !important; border-radius: 0.5rem; }
+            
             #screen-scan .flex.flex-wrap { margin-bottom: 10px !important; }
             #screen-scan button { padding: 4px 12px !important; font-size: 0.75rem !important; }
 
@@ -102,10 +103,7 @@
             <h2 class="text-xl sm:text-3xl font-extrabold text-[#124090] mb-2 tracking-wide">STANDBY SCAN</h2>
             <p class="text-slate-600 text-xs sm:text-base text-center mb-4 max-w-md">Arahkan kamera ke QR Code untuk memulai pemilihan.</p>
             
-            <!-- Penambahan min-h-[250px] dan border agar wadah kamera tidak kolaps -->
-            <div id="reader" class="w-full max-w-[320px] min-h-[250px] bg-slate-200 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden shadow-sm relative mb-4 flex items-center justify-center">
-                <span class="text-slate-400 text-sm">Menyiapkan kamera...</span>
-            </div>
+            <div id="reader" class="w-full max-w-[320px] bg-slate-200 border-2 border-dashed border-slate-300 rounded-2xl overflow-hidden shadow-sm relative mb-4"></div>
             
             <p id="camera-status" class="text-slate-500 text-[12px] sm:text-sm mb-4 font-medium text-center">Meminta akses kamera...</p>
 
@@ -187,14 +185,13 @@
             { id: 1, name: "KANDIDAT 1", photo: "kandidat.jpg" },
             { id: 2, name: "KOMARUDIN", photo: "komarudin.jpeg" },
             { id: 3, name: "KANDIDAT 3", photo: "kandidat.jpg" },
-            { id: 4, name: "KANDIDAT 4", photo: "kandidat.jpg" }
         ];
 
         const STORAGE_KEY = 'pilkades_perolehan_suara';
 
         let selectedCandidate = null;
         let qrScanner = null;
-        let currentFacingMode = "environment"; 
+        let currentFacingMode = "environment"; // Standar kamera belakang
         let isCameraRunning = false;
 
         window.onload = () => {
@@ -228,16 +225,23 @@
                     }
                 },
                 (errorMessage) => {
-                    // Kesalahan scan per frame diabaikan
+                    // Abaikan pesan error minor setiap frame
                 }
             ).then(() => { 
                 isCameraRunning = true; 
                 statusText.innerHTML = "Kamera aktif. Arahkan ke QR Code.";
                 statusText.className = "text-green-600 text-[12px] sm:text-sm mb-4 font-medium text-center";
             }).catch(err => { 
-                console.warn("Kamera tidak tersedia atau akses ditolak:", err); 
-                statusText.innerHTML = "Kamera diblokir atau tidak tersedia.<br>Pastikan Anda mengizinkan akses kamera di setelan browser.";
-                statusText.className = "text-red-500 text-[12px] sm:text-sm mb-4 font-medium text-center";
+                // FALLBACK OTOMATIS: Jika gagal mencari "environment" (seperti di laptop), langsung switch ke "user" (webcam)
+                if (currentFacingMode === "environment") {
+                    console.log("Kamera belakang tidak ditemukan, beralih ke webcam (user)...");
+                    currentFacingMode = "user";
+                    startCamera(); // Panggil fungsi kembali untuk menggunakan kamera depan
+                } else {
+                    console.warn("Kamera tidak tersedia:", err); 
+                    statusText.innerHTML = "Gagal memuat kamera. Pastikan izin kamera telah diberikan.";
+                    statusText.className = "text-red-500 text-[12px] sm:text-sm mb-4 font-medium text-center";
+                }
             });
         }
 
@@ -314,7 +318,6 @@
             document.getElementById('btn-submit-final').innerText = "Menyimpan...";
 
             try {
-                // Simpan suara secara lokal di penyimpanan perangkat (localStorage)
                 const dataSuara = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
                 const key = 'kandidat_' + selectedCandidate.id;
                 dataSuara[key] = (dataSuara[key] || 0) + 1;
