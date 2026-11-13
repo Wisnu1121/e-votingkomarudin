@@ -183,7 +183,358 @@
         const candidates = [
             { id: 1, name: "KANDIDAT 1", photo: "kandidat.jpg" },
             { id: 2, name: "KOMARUDIN", photo: "komarudin.jpeg" },
-            { id: 3, name: "KANDIDAT 3", photo: "kandidat.jpg" };
+            { id: 3, name: "KANDIDAT 3", photo: "kandidat.jpg" },
+            { id: 4, name: "KANDIDAT 4", photo: "kandidat.jpg" },
+        ];
+
+        const STORAGE_KEY = 'pilkades_perolehan_suara';
+
+        let selectedCandidate = null;
+        let qrScanner = null;
+        let currentFacingMode = "environment"; 
+        let isCameraRunning = false;
+
+        window.onload = () => {
+            qrScanner = new Html5Qrcode("reader");
+            startCamera();
+            renderCandidates();
+        };
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch((err) => {});
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen();
+            }
+        }
+
+        function startCamera() {
+            qrScanner.start(
+                { facingMode: currentFacingMode },
+                { fps: 10, qrbox: { width: 200, height: 200 } },
+                (decodedText) => {
+                    if (isCameraRunning) {
+                        qrScanner.stop().then(() => {
+                            isCameraRunning = false;
+                            startVoting(decodedText);
+                        });
+                    }
+                },
+                (errorMessage) => {}
+            ).then(() => { isCameraRunning = true; }).catch(err => { console.warn("Kamera tidak tersedia"); });
+        }
+
+        function switchCamera() {
+            if (isCameraRunning) {
+                qrScanner.stop().then(() => {
+                    isCameraRunning = false;
+                    currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+                    startCamera();
+                });
+            } else {
+                currentFacingMode = currentFacingMode === "environment" ? "user" : "environment";
+                startCamera();
+            }
+        }
+
+        function startVoting(qrData) {
+            if (isCameraRunning) {
+                qrScanner.stop().then(() => { isCameraRunning = false; }).catch(e => console.log(e));
+            }
+            document.getElementById('screen-scan').classList.add('hidden');
+            document.getElementById('screen-voting').classList.remove('hidden');
+            document.getElementById('screen-voting').classList.add('flex');
+        }
+
+        function renderCandidates() {
+            const container = document.getElementById('candidates-container');
+            container.innerHTML = '';
+            
+            candidates.forEach(c => {
+                const card = document.createElement('div');
+                card.className = `candidate-card w-[46%] sm:w-48 max-w-[200px] bg-white border-2 border-gray-200 rounded-xl overflow-hidden cursor-pointer shadow-sm relative pt-8 sm:pt-10`;
+                card.onclick = () => selectCandidate(c.id);
+                
+                card.innerHTML = `
+                    <div class="absolute top-0 left-0 w-full h-7 sm:h-8 bg-gray-100 border-b-2 border-gray-200 flex items-center justify-center">
+                        <span class="font-bold text-gray-700 text-sm sm:text-lg">${c.id}</span>
+                    </div>
+                    <div class="p-2 sm:p-4 flex flex-col items-center">
+                        <div class="w-full aspect-[3/4] bg-gray-200 rounded-md overflow-hidden mb-2 sm:mb-4 border border-gray-300">
+                            <img src="${c.photo}" class="candidate-img">
+                        </div>
+                        <h3 class="text-center font-bold text-xs sm:text-sm text-gray-800 leading-tight min-h-[32px] sm:min-h-[40px] flex items-center justify-center w-full uppercase">${c.name}</h3>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        function selectCandidate(id) {
+            selectedCandidate = candidates.find(c => c.id === id);
+            document.querySelectorAll('.candidate-card').forEach((card, index) => {
+                index + 1 === id ? card.classList.add('selected') : card.classList.remove('selected');
+            });
+            const btn = document.getElementById('btn-pilih');
+            btn.disabled = false;
+            btn.classList.replace('bg-gray-400', 'bg-blue-600');
+            btn.classList.replace('cursor-not-allowed', 'hover:bg-blue-700');
+            btn.classList.add('hover:scale-105');
+        }
+
+        function showModal() {
+            if (!selectedCandidate) return;
+            document.getElementById('modal-foto').src = selectedCandidate.photo;
+            document.getElementById('modal-nama').innerText = selectedCandidate.name;
+            document.getElementById('modal-nomor').innerText = selectedCandidate.id;
+            document.getElementById('modal-konfirmasi').classList.remove('hidden');
+        }
+
+        function hideModal() { document.getElementById('modal-konfirmasi').classList.add('hidden'); }
+
+        function submitVote() {
+            document.getElementById('btn-submit-final').disabled = true;
+            document.getElementById('btn-submit-final').innerText = "Menyimpan...";
+
+            try {
+                // Simpan suara secara lokal di penyimpanan perangkat (localStorage)
+                const dataSuara = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {};
+                const key = 'kandidat_' + selectedCandidate.id;
+                dataSuara[key] = (dataSuara[key] || 0) + 1;
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(dataSuara));
+
+                tampilkanStruk();
+            } catch (error) {
+                alert("Gagal menyimpan suara ke penyimpanan perangkat!");
+                window.location.reload();
+            }
+        }
+
+        function tampilkanStruk() {
+            hideModal();
+            document.getElementById('screen-voting').classList.add('hidden');
+            document.getElementById('screen-voting').classList.remove('flex');
+            document.getElementById('screen-receipt').classList.remove('hidden');
+            document.getElementById('screen-receipt').classList.add('flex');
+
+            const actionContainer = document.getElementById('receipt-actions');
+            actionContainer.classList.add('hidden');
+            actionContainer.classList.remove('fade-in');
+
+            document.getElementById('status-text').innerText = "Suara Berhasil Disimpan!";
+
+            setTimeout(() => {
+                document.getElementById('receipt-paper').style.transform = 'translateY(0)';
+                
+                const waktu = new Date();
+                const timestamp = waktu.getTime();
+                const randomCode = Math.random().toString(36).substring(2, 6).toUpperCase();
+                const uniqueId = `VOTE-TPS1-${timestamp}-${randomCode}`;
+                
+                document.getElementById('receipt-hash').innerText = uniqueId;
+                document.getElementById('qrcode-receipt').innerHTML = '';
+                new QRCode(document.getElementById("qrcode-receipt"), { text: uniqueId, width: 80, height: 80 }); 
+
+                setTimeout(() => {
+                    actionContainer.classList.remove('hidden');
+                    actionContainer.classList.add('fade-in');
+                }, 2000);
+            }, 500);
+        }
+
+        function resetApp() {
+            window.location.reload();
+        }
+    </script>
+</body>
+</html><!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Bilik Suara - E-Voting</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; user-select: none; -webkit-tap-highlight-color: transparent; }
+        .bg-header { background: linear-gradient(to right, #ff4b4b, #d80000); }
+        .candidate-card { transition: all 0.2s ease-in-out; }
+        .candidate-card.selected {
+            border-color: #3b82f6; background-color: #eff6ff;
+            transform: scale(1.02); box-shadow: 0 10px 15px -3px rgba(59, 130, 246, 0.5);
+        }
+        .fade-in { animation: fadeIn 0.5s ease-in-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Menggunakan object-fit: contain agar foto tidak ada bagian kepala/bawah yang terpotong */
+        .candidate-img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain !important;
+            background-color: #f3f4f6;
+        }
+
+        /* =========================================================
+           RESPONSIF MENYELURUH UNTUK LAYAR MENDATAR (LANDSCAPE)
+           ========================================================= */
+        @media (orientation: landscape) {
+            #screen-scan { overflow-y: auto !important; }
+            #screen-scan .bg-\[\#124090\] { padding-top: 6px !important; padding-bottom: 6px !important; }
+            #screen-scan .bg-\[\#124090\] h1 { font-size: 0.75rem !important; }
+            #screen-scan .bg-\[\#124090\] button { padding: 2px 8px !important; font-size: 0.7rem !important; }
+            #screen-scan .flex-grow { padding-top: 10px !important; padding-bottom: 20px !important; }
+            #screen-scan h2 { font-size: 1.2rem !important; margin-bottom: 2px !important; }
+            #screen-scan p { font-size: 0.75rem !important; margin-bottom: 8px !important; }
+            
+            #reader { width: 200px !important; max-width: 200px !important; max-height: 160px !important; margin-bottom: 8px !important; }
+            #reader video { object-fit: cover !important; max-height: 160px !important; }
+            #screen-scan .flex.flex-wrap { margin-bottom: 10px !important; }
+            #screen-scan button { padding: 4px 12px !important; font-size: 0.75rem !important; }
+
+            .bg-header { flex-direction: row !important; padding: 4px 10px !important; gap: 10px !important; justify-content: center !important; }
+            .bg-header img { height: 30px !important; }
+            .bg-header .text-center { text-align: left !important; margin-top: 0 !important; }
+            .bg-header h1 { font-size: 0.9rem !important; }
+            .bg-header p { font-size: 0.6rem !important; display: inline-block; margin-right: 5px; margin-top: 0 !important; }
+
+            #screen-voting .flex-grow { padding: 4px 10px !important; justify-content: center !important; gap: 4px !important; overflow: hidden !important; }
+            #candidates-container { flex-wrap: nowrap !important; justify-content: center !important; align-items: center !important; gap: 1.5% !important; width: 100%; }
+            .candidate-card { width: 18.5% !important; max-width: 140px !important; margin: 0 !important; padding-top: 16px !important; }
+            .candidate-card .absolute { height: 16px !important; }
+            .candidate-card .absolute span { font-size: 0.75rem !important; }
+            .candidate-card .p-2 { padding: 3px !important; }
+            .candidate-card .aspect-\[3\/4\] { aspect-ratio: auto !important; height: 38vh !important; max-height: 105px !important; margin-bottom: 2px !important; }
+            .candidate-card h3 { font-size: 0.6rem !important; min-height: 12px !important; line-height: 1.0; }
+            
+            .mt-8, .sm\:mt-12 { margin-top: 0 !important; }
+            .pb-8 { padding-bottom: 2px !important; }
+            #btn-pilih { padding: 4px 30px !important; font-size: 0.8rem !important; border-radius: 6px !important; }
+
+            #modal-konfirmasi .bg-white { max-height: 94vh !important; display: flex; flex-direction: column; border-radius: 12px !important; }
+            #modal-konfirmasi .bg-blue-600 { padding: 4px 12px !important; }
+            #modal-konfirmasi .bg-blue-600 h3 { font-size: 0.9rem !important; }
+            #modal-konfirmasi .p-6, #modal-konfirmasi .sm\:p-8 { padding: 6px 12px !important; overflow-y: auto; }
+            #modal-konfirmasi p.text-gray-600 { margin-bottom: 2px !important; font-size: 0.75rem !important; }
+            #modal-konfirmasi .w-32, #modal-konfirmasi .sm\:w-40 { width: 50px !important; height: 65px !important; margin-bottom: 4px !important; }
+            #modal-nama { font-size: 1rem !important; margin-bottom: 0 !important; line-height: 1; }
+            #modal-konfirmasi p.text-gray-500 { margin-bottom: 4px !important; margin-top: 1px !important; font-size: 0.75rem !important; }
+            #modal-konfirmasi button { padding-top: 4px !important; padding-bottom: 4px !important; font-size: 0.75rem !important; }
+
+            #screen-receipt { padding: 4px !important; justify-content: center !important; }
+            #status-text { font-size: 1rem !important; margin-bottom: 2px !important; }
+            .bg-gray-800.rounded-t-xl { height: 10px !important; }
+            .bg-gray-800 .bg-black { margin-top: 2px !important; height: 3px !important; }
+            #receipt-paper { padding: 8px !important; }
+            #receipt-paper img { height: 20px !important; width: 20px !important; margin-bottom: 1px !important; }
+            #receipt-paper p.border-b { padding-bottom: 2px !important; margin-bottom: 2px !important; font-size: 0.45rem !important; }
+            #qrcode-receipt { transform: scale(0.55); margin-top: -18px; margin-bottom: -18px; }
+            #receipt-hash { font-size: 0.45rem !important; }
+            #screen-receipt p.mt-10 { margin-top: 4px !important; font-size: 0.75rem !important; }
+            #receipt-actions { margin-top: 2px !important; }
+            #receipt-actions button { padding: 4px 20px !important; font-size: 0.75rem !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen w-full flex flex-col overflow-hidden relative text-sm sm:text-base">
+
+    <!-- 1. SCREEN: SCAN BARCODE -->
+    <div id="screen-scan" class="flex flex-col h-full w-full bg-[#f4f7fa] z-10 absolute inset-0">
+        <div class="bg-[#124090] text-white px-4 py-3 flex justify-between items-center shadow-md shrink-0">
+            <h1 class="text-[11px] sm:text-sm font-bold uppercase truncate pr-2 tracking-wide">SIMULASI PEMILIHAN KEPALA DESA</h1>
+            <button onclick="toggleFullScreen()" class="border border-white/60 px-3 py-1.5 text-[10px] sm:text-xs rounded hover:bg-white/20 transition shrink-0 font-semibold">LAYAR PENUH</button>
+        </div>
+
+        <div class="flex-grow flex flex-col items-center pt-4 px-4 pb-12 overflow-y-auto">
+            <p class="text-center text-slate-500 text-[12px] sm:text-sm mb-4 max-w-md leading-relaxed">Putar perangkat ke posisi landscape untuk tampilan terbaik.</p>
+            <h2 class="text-xl sm:text-3xl font-extrabold text-[#124090] mb-2 tracking-wide">STANDBY SCAN</h2>
+            <p class="text-slate-600 text-xs sm:text-base text-center mb-4 max-w-md">Arahkan kamera ke QR Code untuk memulai pemilihan.</p>
+            
+            <div id="reader" class="w-full max-w-[320px] bg-white rounded-2xl overflow-hidden shadow-sm relative mb-4"></div>
+            
+            <p class="text-slate-500 text-[12px] sm:text-sm mb-4 font-medium">Kamera aktif. Arahkan ke QR Code.</p>
+
+            <div class="flex flex-wrap justify-center gap-3 w-full max-w-[400px]">
+                <button onclick="switchCamera()" class="px-4 py-2 bg-white border border-gray-300 text-gray-700 rounded-lg shadow-sm hover:bg-gray-50 font-semibold flex items-center gap-2 transition-colors text-xs sm:text-sm">Tukar Kamera</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. SCREEN: SURAT SUARA -->
+    <div id="screen-voting" class="hidden flex-col h-full w-full absolute inset-0 bg-white">
+        <!-- Area Header -->
+        <div class="bg-header text-white py-4 px-4 sm:py-6 sm:px-6 shadow-md flex flex-col items-center justify-center relative shrink-0 gap-2">
+            <img src="suang.png" class="h-16 sm:h-20 object-contain drop-shadow-md" alt="Logo">
+            <div class="text-center mt-1">
+                <h1 class="text-xl sm:text-3xl font-extrabold tracking-wide leading-none">SURAT SUARA</h1>
+                <p class="text-[11px] sm:text-lg font-semibold mt-1 uppercase leading-tight">Simulasi Pemilihan Kepala Desa Wantilan</p>
+                <p class="text-[11px] sm:text-lg font-semibold mt-1 uppercase leading-tight">Kecamatan Cipendeuy, Kabupaten Subang</p>
+            </div>
+        </div>
+
+        <div class="flex-grow flex flex-col items-center justify-start sm:justify-center p-4 sm:p-8 bg-gray-50 overflow-y-auto w-full">
+            <div id="candidates-container" class="flex gap-3 sm:gap-6 justify-center w-full max-w-6xl flex-wrap"></div>
+
+            <div class="mt-8 sm:mt-12 w-full flex justify-center pb-8 shrink-0">
+                <button id="btn-pilih" disabled onclick="showModal()" class="bg-gray-400 text-white font-bold text-lg sm:text-xl px-8 sm:px-12 py-3 sm:py-4 rounded-xl shadow-lg transition-all duration-300 cursor-not-allowed">PILIH KANDIDAT INI</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3. MODAL KONFIRMASI -->
+    <div id="modal-konfirmasi" class="hidden fixed inset-0 bg-black/70 z-[60] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="bg-white rounded-2xl w-full max-w-[400px] sm:max-w-[500px] overflow-hidden shadow-2xl transform transition-all">
+            <div class="bg-blue-600 text-white py-3 px-5 sm:py-4 sm:px-6">
+                <h3 class="text-lg sm:text-xl font-bold">Konfirmasi Pemilihan</h3>
+            </div>
+            <div class="p-6 sm:p-8 flex flex-col items-center text-center">
+                <p class="text-gray-600 mb-4 sm:mb-6 text-sm sm:text-lg">Apakah Anda yakin akan memilih kandidat ini?</p>
+                <div class="w-32 h-40 sm:w-40 sm:h-48 bg-gray-100 rounded-lg border-2 border-gray-200 shadow-sm mb-4 overflow-hidden">
+                    <img id="modal-foto" src="" class="candidate-img">
+                </div>
+                <h4 id="modal-nama" class="text-xl sm:text-2xl font-bold text-gray-800 leading-tight">Nama Kandidat</h4>
+                <p class="text-gray-500 font-semibold mb-6 sm:mb-8 text-sm sm:text-base mt-1">Kandidat No. <span id="modal-nomor">X</span></p>
+
+                <div class="flex gap-3 sm:gap-4 w-full">
+                    <button onclick="hideModal()" class="flex-1 py-2.5 sm:py-3 font-bold text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors border border-red-200 text-sm sm:text-base">ULANGI</button>
+                    <button id="btn-submit-final" onclick="submitVote()" class="flex-1 py-2.5 sm:py-3 font-bold text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors shadow-lg text-sm sm:text-base">PILIH</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 4. SCREEN: STRUK AUDIT (RECEIPT) -->
+    <div id="screen-receipt" class="hidden flex-col h-full w-full justify-center items-center bg-gray-100 z-[70] absolute inset-0 p-4">
+        <h2 id="status-text" class="text-2xl sm:text-3xl font-bold text-gray-800 mb-8 text-center">Memproses Suara...</h2>
+        <div class="relative w-72 sm:w-80 max-w-full bg-gray-800 rounded-t-xl h-6 sm:h-8 shadow-2xl z-20 flex justify-center">
+            <div class="w-56 sm:w-64 h-1.5 sm:h-2 bg-black mt-2 rounded-full"></div>
+        </div>
+        <div id="receipt-paper" class="w-64 sm:w-72 max-w-[85%] bg-white shadow-xl flex flex-col items-center p-5 sm:p-6 transform translate-y-[-100%] transition-transform duration-1000 ease-out z-10 border border-gray-200">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 mb-2">
+                <img src="kpu.png" class="w-full h-full object-contain">
+            </div>
+            <p class="text-[9px] sm:text-[10px] font-bold text-center uppercase leading-tight mb-4 border-b border-dashed border-gray-400 pb-2 w-full">
+                SURAT AUDIT<br>Pilkades Wantilan<br>TPS 1 / BILIK 1
+            </p>
+            <div id="qrcode-receipt" class="mb-4"></div>
+            <p class="text-[7px] sm:text-[8px] text-center text-gray-500 break-all w-full font-mono mt-2" id="receipt-hash"></p>
+            <p class="text-[9px] sm:text-[10px] font-bold mt-4">TERIMA KASIH</p>
+        </div>
+        <p class="mt-10 text-gray-600 font-medium text-sm sm:text-lg text-center px-4">Silakan ambil struk ini dan masukkan ke kotak audit.</p>
+
+        <div id="receipt-actions" class="mt-6 hidden opacity-0 flex flex-col sm:flex-row justify-center gap-3 w-full max-w-xs sm:max-w-none z-20">
+            <button onclick="resetApp()" class="w-full sm:w-auto px-8 py-2.5 sm:py-3 bg-blue-600 text-white font-bold rounded-lg shadow-lg hover:bg-blue-700 transition text-sm sm:text-base">Pemilih Selanjutnya</button>
+        </div>
+    </div>
+
+    <script>
+        const candidates = [
+            { id: 1, name: "KANDIDAT 1", photo: "kandidat.jpg" },
+            { id: 2, name: "KOMARUDIN", photo: "komarudin.jpeg" },
+            { id: 3, name: "KANDIDAT 3", photo: "kandidat.jpg" },
+            { id: 4, name: "KANDIDAT 4", photo: "kandidat.jpg" },
+        ];
 
         const STORAGE_KEY = 'pilkades_perolehan_suara';
 
